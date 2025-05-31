@@ -1,0 +1,111 @@
+---
+title: "Ejemplo de Simulación de Montecarlo"
+output:
+  html_document:
+    df_print: paged
+---
+
+1. Preparación de datos
+
+Para comenzar, vamos a generar datos aleatorios para nuestras variables de entrada dentro de un rango realista de operación. Supongamos que la presión de aire (A) varía entre 5 y 10 bares, y la temperatura del barril (T) entre 180 y 230 °C. Vamos a simular 1,000 experimentos.
+
+```{r}
+set.seed(42) # Establecer una semilla para la reproducibilidad de los resultados
+n <- 1000 # Número de experimentos
+
+# Generar variables de entrada
+A <- runif(n, min = 5, max = 10) # Presión de aire (bares)
+T <- runif(n, min = 180, max = 230) # Temperatura del barril (°C)
+```
+
+2. Modelo de espesor de pared
+
+Para este ejemplo, supondremos que el espesor de la pared (E) depende de la presión de aire y la temperatura del barril siguiendo una función desconocida. En un escenario real, este modelo se obtendría mediante experimentación y análisis de regresión.
+
+```{r}
+# Función desconocida que relaciona las variables de entrada con el espesor de la pared
+wall_thickness <- function(A, T) {
+  return(0.1 * A + 0.01 * T + rnorm(1, mean = 0, sd = 0.1))
+}
+
+# Calcular el espesor de la pared para cada experimento
+E <- numeric(n)
+for (i in 1:n) {
+  E[i] <- wall_thickness(A[i], T[i])
+}
+```
+
+3.Análisis de resultados
+
+Una vez que tenemos los datos generados, podemos analizar las relaciones entre las variables de entrada y el espesor de la pared. Por ejemplo, podemos calcular la correlación entre las variables.
+
+
+```{r}
+cor_A_E <- cor(A, E)
+cor_T_E <- cor(T, E)
+
+cat("Correlación entre presión de aire y espesor de pared:", cor_A_E, "\n")
+cat("Correlación entre temperatura del barril y espesor de pared:", cor_T_E, "\n")
+```
+
+```{r}
+library(ggplot2)
+
+data <- data.frame(PresionAire = A, TemperaturaBarril = T, EspesorPared = E)
+
+# Gráfica de densidad del espesor de la pared
+ggplot(data, aes(x = EspesorPared)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  xlab("Espesor de Pared") +
+  ylab("Densidad") +
+  theme_minimal()
+
+# Gráfico de dispersión de las variables de entrada y el espesor de la pared
+ggplot(data, aes(x = PresionAire, y = TemperaturaBarril, color = EspesorPared)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red") +
+  xlab("Presión de Aire (bar)") +
+ylab("Temperatura del Barril (°C)") +
+theme_minimal()
+```
+
+
+Estas visualizaciones nos permiten comprender cómo las variables de entrada, la presión de aire y la temperatura del barril, afectan el espesor de la pared en el proceso de extrusión-soplado. En base a estos resultados, podríamos realizar ajustes en el proceso de producción para mejorar la calidad del envase.
+
+
+4. Optimización del proceso
+
+
+Supongamos que queremos minimizar la variabilidad en el espesor de la pared mientras mantenemos un valor objetivo. Podemos utilizar un algoritmo de optimización, como el algoritmo de búsqueda de la cuadrícula, para encontrar la combinación óptima de presión de aire y temperatura del barril que cumpla con estos requisitos.
+
+
+```{r}
+library(dplyr)
+
+# Objetivo: Espesor de pared
+target_thickness <- 2.75
+
+# Función objetivo para minimizar la variabilidad en el espesor de la pared
+objective_function <- function(A, T) {
+  E <- wall_thickness(A, T)
+  return(abs(E - target_thickness))
+}
+
+# Búsqueda de la cuadrícula
+A_range <- seq(5, 10, by = 0.1)
+T_range <- seq(180, 230, by = 1)
+
+grid_search_results <- expand.grid(A = A_range, T = T_range) %>%
+  mutate(E = mapply(objective_function, A, T)) %>%
+  arrange(E)
+
+optimal_parameters <- grid_search_results[1, c("A", "T")]
+
+cat("Parámetros óptimos:\n")
+print(optimal_parameters)
+```
+
+
+Con base en los resultados de la optimización, podemos ajustar la presión de aire y la temperatura del barril en el proceso de extrusión-soplado para obtener un espesor de pared más uniforme y cercano al valor objetivo.
+
+Este ejemplo demuestra cómo la simulación de Montecarlo, en conjunto con el lenguaje R, puede utilizarse para analizar y optimizar el proceso de extrusión-soplado en la fabricación de envases plásticos. Mediante la exploración de diferentes combinaciones de variables de entrada y el análisis de sus efectos en el espesor de la pared, los fabricantes pueden mejorar la calidad de sus productos y reducir la variabilidad en el proceso de producción.
