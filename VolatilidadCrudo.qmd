@@ -1,0 +1,133 @@
+---
+title: "Volatilidad Crudo"
+format: html
+editor: visual
+---
+
+```{r}
+library(fredr)
+library(tidyverse)
+library(PerformanceAnalytics)
+library(rugarch)
+library(xts)
+library(FinTS)
+
+fredr_set_key(Sys.getenv("FRED_API_KEY"))
+
+```
+```{r}
+# ===========================
+# Función para procesar la serie
+# ===========================
+preparar_datos <- function(df) {
+  df %>%
+    select(date, value) %>%
+    rename(price = value) %>%
+    arrange(date) %>%
+    mutate(
+      ret_log = log(price / lag(price))
+    ) %>%
+    filter(!is.na(ret_log))  # mejor que drop_na() para solo la columna de interés
+}
+
+# ===========================
+# Análisis estadístico básico
+# ===========================
+analisis_estadistico <- function(serie) {
+  list(
+    vol_anualizada = sd(serie$ret_log) * sqrt(252),
+    VaR_hist_95 = quantile(serie$ret_log, probs = 0.05),
+    VaR_MC_95 = quantile(sample(serie$ret_log, size = 10000, replace = TRUE), probs = 0.05),
+    kurtosis = kurtosis(serie$ret_log),
+    skewness = skewness(serie$ret_log)
+  )
+}
+
+# ===========================
+# Test de efectos ARCH
+# ===========================
+test_arch <- function(serie, lags = 10) {
+  ArchTest(serie$ret_log, lags = lags)
+}
+
+# ===========================
+# Ajustar modelos ARCH y GARCH(1,1)
+# ===========================
+ajustar_arch_garch <- function(serie) {
+  # Asegurarse que no hay NAs
+  serie <- serie %>% filter(!is.na(ret_log))
+  
+  # Especificación GARCH(1,1) estándar
+  spec_garch <- ugarchspec(
+    mean.model = list(armaOrder = c(0,0)),
+    variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
+    distribution.model = "std"
+  )
+  
+  fit_garch <- ugarchfit(spec_garch, data = serie$ret_log)
+  return(fit_garch)
+}
+
+# ===========================
+# VaR pronosticado a 1 día con GARCH
+# ===========================
+VaR_garch_1d <- function(fit_garch, nivel_conf = 0.95) {
+  fcast <- ugarchforecast(fit_garch, n.ahead = 1)
+  mu <- fitted(fcast)
+  sigma <- sigma(fcast)
+  shape <- coef(fit_garch)["shape"]
+  qdist("std", p = 1 - nivel_conf, mu = mu, sigma = sigma, shape = shape)
+}
+
+# ===========================
+# Procesar y analizar una serie
+# ===========================
+analizar_serie <- function(df, nombre = "Activo") {
+  serie <- preparar_datos(df)
+  est <- analisis_estadistico(serie)
+  arch_test <- test_arch(serie)
+  modelos <- ajustar_arch_garch(serie)
+  var_garch_1d <- VaR_garch_1d(modelos$GARCH)
+  
+  cat("\n=== Análisis para:", nombre, "===\n")
+  cat("Volatilidad anualizada:", round(est$vol_anualizada, 4), "\n")
+  cat("VaR histórico (95%):", round(est$VaR_hist_95, 4), "\n")
+  cat("VaR Monte Carlo (95%):", round(est$VaR_MC_95, 4), "\n")
+  cat("Test ARCH p-valor:", arch_test$p.value, "\n")
+  cat("VaR GARCH(1,1) pronosticado 1 día (95%):", round(var_garch_1d, 4), "\n")
+  
+  invisible(list(
+    estadisticos = est,
+    arch_test = arch_test,
+    modelos = modelos,
+    VaR_garch_1d = var_garch_1d
+  ))
+}
+```
+
+1\. Extracción de datos
+
+```{r}
+wti <- fredr(
+  series_id = "DCOILWTICO",
+  observation_start = as.Date("2015-01-01"),
+  observation_end = Sys.Date()
+) 
+brent <- fredr(
+  series_id = "DCOILBRENTEU",
+  observation_start = as.Date("2015-01-01"),
+  observation_end = Sys.Date()
+) 
+```
+
+```{r}
+# Analizar WTI y Brent
+res_wti <- analizar_serie(wti, "WTI")
+res_brent <- analizar_serie(brent, "Brent"))
+```
+
+2\. Cálculo de rendimientos y volatilidad
+
+
+
+
