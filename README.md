@@ -43,7 +43,7 @@ Este repositorio está en **constante evolución**. Los archivos se van agregand
 
 ## 📝 Licencia
 
-Este proyecto está bajo la licencia CC0 1.0 Universal - ver el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está bajo la licencia CC0 1.0 Universal - ver el archivo [LICENSE](LICENSE) para obtener más detalles.
 
 ## 📫 Contacto
 
